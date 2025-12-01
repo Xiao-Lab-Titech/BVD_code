@@ -4,19 +4,25 @@ dimension = 2
 # Problem type:
 #   if dimension==1 → 1: shock tube
 #   if dimension==2 or 3 → 1: static droplet
-problem_type = 1
+problem_type = 2
 
 # Numerical scheme:
 #   1: MUSCL
 #   2: THINC
 #   3: MUSCL-THINC-BVD
-scheme = 3
+scheme = 1
 
 # Surface tension model:
 #   0: none
 #   1: linear interpolation
 #   2: linear + filtering
-surface_tension = 2
+surface_tension = 0
+
+# Runge-Kutta method:
+#   1: 1st-order Euler-forward method
+#   2: 2nd-order Runge-Kutta method
+#   3: 3rd-order Runge-Kutta method
+RK_type = 3
 
 # Number of threads for OpenMP
-num_threads = 30
+num_threads = 1

@@ -109,6 +109,7 @@ double sound_speed_square
 void initial_condition();
 void initial_condition_1D_GasLiquidRiemann();
 void initial_condition_2D_static_droplet();
+void initial_condition_2D_underwater_explosion();
 void prim_to_cons_5eq(double *alpha1rho1,double *alpha2rho2,double *rhou,double *rhov,double *rhow,double *rhoE,
                   double alpha1,double rho1,double rho2,double u,double v,double w,double p);
 void cons_to_prim_5eq(double *rho1,double *rho2,double *u,double *v,double *w,double *p,
@@ -314,9 +315,17 @@ void parameter(){
             material="water-air1_nondim"; // material name for equation of state
             sound_speed_type = 1; // system sound speed
         }
-        
+        // 2D underwater explosion problem
         else if (problem_type == 2){
-            
+            nx=256; //
+            ny=nx;
+            x_range[0]=-2.0;
+            x_range[1]=2.0;
+            y_range[0]=-1.5;
+            y_range[1]=2.5;
+            boundary_type={1,1,2,1,-1,-1};
+            material="water-air1"; // material name for equation of state
+            sound_speed_type = 1; // system sound speed
         }
         
         nz = 1;   // number of cell in z-direction in computational domain
@@ -514,6 +523,14 @@ void EOS_param(){
         eta1d=0.0; eta2d=0.0;
         Cv1=0.0; Cv2=0.0;
     }
+    else if (material=="water-air1"){
+        EOS_type=2;
+        gamma1=4.4; gamma2=1.4;
+        pi1=6.0e+8; pi2=0.0;
+        eta1=0.0; eta2=0.0;
+        eta1d=0.0; eta2d=0.0;
+        Cv1=0.0; Cv2=0.0;
+    }
     else {
         cout<<"material is not defined."<<endl;
         getchar();
@@ -592,6 +609,10 @@ void initial_condition(){
         if (problem_type == 1){
             t_end = 10.0; // time to end calculation
             initial_condition_2D_static_droplet();
+        }
+        else if (problem_type == 2){
+            t_end = 3.16e-3; // time to end calculation
+            initial_condition_2D_underwater_explosion();
         }
     }
     else if (dim == 3){
@@ -686,6 +707,72 @@ void initial_condition_2D_static_droplet(){
     //         for (k=0;k<nz;k++){
     //             for (m=0;m<num_var;m++){
     //                 U[0][m][I(ng+i,ng+ny-1-j,ng+k)]=U[0][m][I(ng+i,ng+j,ng+k)];
+    //             }
+    //         }
+    //     }
+    // }
+}
+
+void initial_condition_2D_underwater_explosion(){
+    int i,j,k,m,xi,Ic;
+    double x,y,r;
+    double xp[3],yp[3],area[9],ratio_area;
+    double y_border=0.0, x_center=0.0, y_center=-0.3, r_bubble=0.12;
+    
+    vec1d prim1(num_var), prim2(num_var), prim3(num_var);
+    vec1d cons1(num_var), cons2(num_var), cons3(num_var);
+    prim1 = {1.0e-8, 1000.0, 1250.0, 0.0, 0.0, 0.0, 1.0e+9};
+    prim2 = {1.0-1.0e-8, 1000.0, 1.225, 0.0, 0.0, 0.0, 1.01325e+5};
+    prim3 = {1.0e-8, 1000.0, 1.225, 0.0, 0.0, 0.0, 1.01325e+5};
+    // prim1 = {1.0e-8, 1000.0, 1250.0, 0.0, 0.0, 0.0, 1.0e+4};
+    // prim2 = {1.0-1.0e-8, 1000.0, 1.225, 0.0, 0.0, 0.0, 1.01325};
+    // prim3 = {1.0e-8, 1000.0, 1.225, 0.0, 0.0, 0.0, 1.01325};
+    
+    cons1[0] = prim1[0];
+    cons2[0] = prim2[0];
+    cons3[0] = prim3[0];
+    prim_to_cons_5eq(&cons1[1], &cons1[2], &cons1[3], &cons1[4], &cons1[5], &cons1[6],
+                prim1[0], prim1[1], prim1[2], prim1[3], prim1[4], prim1[5], prim1[6]);
+    prim_to_cons_5eq(&cons2[1], &cons2[2], &cons2[3], &cons2[4], &cons2[5], &cons2[6],
+                prim2[0], prim2[1], prim2[2], prim2[3], prim2[4], prim2[5], prim2[6]);
+    prim_to_cons_5eq(&cons3[1], &cons3[2], &cons3[3], &cons3[4], &cons3[5], &cons3[6],
+                prim3[0], prim3[1], prim3[2], prim3[3], prim3[4], prim3[5], prim3[6]);
+                
+    for (i = ngx; i < ngx + nx; i++){
+        for (j = ngy; j < ngy + ny; j++){
+            for (k = ngz; k < ngz + nz; k++){
+                Ic = I_c(i, j, k);
+                
+                if (yc[j]<y_border){
+                    xp[0]=xb[i]; xp[1]=xc[i]; xp[2]=xb[i+1];
+                    yp[0]=yb[j]; yp[1]=yc[j]; yp[2]=yb[j+1];
+                    for (xi=0;xi<9;xi++){
+                        x=xp[xi%3]; y=yp[xi/3];
+                        r=sqrt((x-x_center)*(x-x_center)+(y-y_center)*(y-y_center));
+                        // area[xi]=0.5*(1.0+sign(r-r_bubble));
+                        area[xi]=0.5*(1.0+tanh((r-r_bubble)/dx));
+                    }
+                    ratio_area=(16.0*area[4]+4.0*((area[3]+area[5])+(area[1]+area[7]))+1.0*((area[0]+area[8])+(area[2]+area[6])))/36.0;
+                    
+                    for (m=0;m<num_var;m++){
+                        U[0][m][Ic]=(1.0-ratio_area)*cons1[m]+ratio_area*cons2[m];
+                    }
+                }
+                else {
+                    for (m=0;m<num_var;m++){
+                        U[0][m][Ic]=cons3[m];
+                    }
+                }
+            }
+        }
+    }
+    
+    //symmetry preserving for y-axis
+    // for (i=0;i<nx/2;i++){
+    //     for (j=0;j<ny;j++){
+    //         for (k=0;k<nz;k++){
+    //             for (m=0;m<num_var;m++){
+    //                 U[0][m][I(ng+nx-1-i,ng+j,ng+k)]=U[0][m][I(ng+i,ng+j,ng+k)];
     //             }
     //         }
     //     }
